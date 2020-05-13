@@ -1,101 +1,98 @@
 #include "arraylist.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stddef.h>
 
-#define ARRAYLIST_GROW_FACTOR 2
-#define ARRAYLIST_INIT_CAPACITY 4
+#define GROW_FACTOR 2
+#define INIT_CAPACITY 4
+#define NOT_FOUND -1
 
-static void arraylist_grow_buffer(ArrayList* al);
+#define ASSERT_MEMORY_ALLOCATED(PTR) \
+    assert((PTR) && "Memory allocation error");
+
+#define ASSERT_INDEX_IS_VALID(AL, POS) \
+    assert((POS) < (AL)->size && "Index out of bounds error")
+
+#define ASSERT_NOT_EMPTY(AL) \
+    assert(!arraylist_is_empty((AL)) && "ArrayList is empty");
+
 static void arraylist_grow_buffer_by(ArrayList* al, size_t count);
 static void arraylist_shrink_buffer_by(ArrayList* al, size_t count);
 
-static void arraylist_check_index(const ArrayList* al, size_t pos, const char* fun_name);
-static void arraylist_check_memory_allocation(const ArrayList* al, const char* fun_name);
-static void arraylist_error(const char* fun_name, const char* error_msg);
-
 static void swap(int* a, int* b);
 
+/* Constructor */
 void arraylist_init(ArrayList* al)
 {
     al->size = 0;
-    al->capacity = ARRAYLIST_INIT_CAPACITY;
+    al->capacity = INIT_CAPACITY;
     al->buffer_ptr = malloc(sizeof(int) * al->capacity);
-    arraylist_check_memory_allocation(al, "arraylist_init");
+    ASSERT_MEMORY_ALLOCATED(al->buffer_ptr);
 }
 
+/* Destructor */
 void arraylist_del(ArrayList* al)
 {
     free(al->buffer_ptr);
 }
 
-int arraylist_size(const ArrayList* al)
-{
-    return al->size;
-}
+/* Getters */
+size_t arraylist_size(const ArrayList* al) { return al->size; }
 
-int arraylist_capacity(const ArrayList* al)
-{
-    return al->capacity;
-}
+size_t arraylist_capacity(const ArrayList* al) { return al->capacity; }
 
-bool arraylist_empty(const ArrayList* al)
-{
-    return al->size == 0;
-}
+/* States */
+bool arraylist_is_empty(const ArrayList* al) { return al->size == 0; }
 
+bool arraylist_is_full(const ArrayList* al) { return al->size == al->capacity; }
+
+/* Index operator */
 int arraylist_get(const ArrayList* al, size_t pos)
 {
-    arraylist_check_index(al, pos, "arraylist_get");
     return al->buffer_ptr[pos];
 }
 
 void arraylist_set(ArrayList* al, size_t pos, int val)
 {
-    arraylist_check_index(al, pos, "arraylist_set");
     al->buffer_ptr[pos] = val;
 }
 
-void arraylist_push(ArrayList* al, int val)
+/* Methods */
+void arraylist_push_back(ArrayList* al, int val)
 {
-    if (al->size == al->capacity)
-        arraylist_grow_buffer(al);
+    if (arraylist_is_full(al))
+        arraylist_resize(al, al->capacity * GROW_FACTOR);
     
-    al->buffer_ptr[al->size] = val;
-    ++al->size;
+    al->buffer_ptr[al->size++] = val;
 }
 
 int arraylist_pop(ArrayList* al)
 {
-    if (arraylist_empty(al)) {
-        arraylist_error("arraylist_pop", "array list is empty");
-    }
-    
-    --al->size;
-    return al->buffer_ptr[al->size];
+    ASSERT_NOT_EMPTY(al);
+    return al->buffer_ptr[al->size--];
 }
 
 void arraylist_sort(ArrayList* al, bool ascend)
 {
-    if (al->size == 0 || al->size == 1)
-            return;
+    if (al->size == 0 || al->size == 1) return;
 
     if (ascend) {
-        for (int i = 0; i < al->size; ++i) {
+        for (size_t i = 0; i < al->size; ++i) {
             int min_index = i;
-            for (int j = i + 1; j < al->size; ++j) {
+            for (size_t j = i + 1; j < al->size; ++j) {
                 if (al->buffer_ptr[j] < al->buffer_ptr[min_index])
                     min_index = j;
             }
             swap(al->buffer_ptr + i, al->buffer_ptr + min_index);
         }
     } else {
-        for (int i = 0; i < al->size; ++i) {
+        for (size_t i = 0; i < al->size; ++i) {
             int max_index = i;
-            for (int j = i + 1; j < al->size; ++j) {
+            for (size_t j = i + 1; j < al->size; ++j) {
                 if (al->buffer_ptr[j] > al->buffer_ptr[max_index])
                     max_index = j;
             }
@@ -106,116 +103,100 @@ void arraylist_sort(ArrayList* al, bool ascend)
 
 void arraylist_print(const ArrayList* al)
 {
-    if (arraylist_empty(al)) {
+    if (arraylist_is_empty(al)) {
         puts("[]");
         return;
     }
 
     printf("[");
-    for (int i = 0; i < arraylist_size(al); ++i) {
-        printf("%d, ", arraylist_get(al, i));
+    for (size_t i = 0; i < al->size; ++i) {
+        printf("%d", arraylist_get(al, i));
+        if (i + 1 < al->size) printf(", ");
     }
-    printf("\b\b]\n");
+    printf("]\n");
 }
 
 void arraylist_reverse(ArrayList* al)
 {
-    for (int i = 0; i < arraylist_size(al) / 2; ++i) {
-        swap(al->buffer_ptr + i, al->buffer_ptr + arraylist_size(al) - i - 1);
+    for (size_t i = 0; i < al->size / 2; ++i) {
+        swap(al->buffer_ptr + i, al->buffer_ptr + al->size - i - 1);
     }
 }
 
 void arraylist_clear(ArrayList* al)
 {
-    if (arraylist_empty(al))
-        return;
+    if (arraylist_is_empty(al)) return;
     
-    if (arraylist_size(al) <= ARRAYLIST_INIT_CAPACITY) {
+    if (arraylist_size(al) <= INIT_CAPACITY) {
         al->size = 0;
         return;
     }
 
     al->size = 0;
-    al->capacity = ARRAYLIST_INIT_CAPACITY;
-    al->buffer_ptr = (int*)realloc(al->buffer_ptr, sizeof(int) * ARRAYLIST_INIT_CAPACITY);
-    arraylist_check_memory_allocation(al, "arraylist_clear");
+    al->capacity = INIT_CAPACITY;
+    al->buffer_ptr = (int*)realloc(al->buffer_ptr, sizeof(int) * INIT_CAPACITY);
+    ASSERT_MEMORY_ALLOCATED(al->buffer_ptr);
 }
 
 void arraylist_resize(ArrayList* al, size_t count)
 {
-    if (arraylist_capacity(al) < count) {
-        arraylist_grow_buffer_by(al, count - arraylist_capacity(al));
+    if (al->capacity < count) {
+        arraylist_grow_buffer_by(al, count - al->capacity);
     } else {
-        arraylist_shrink_buffer_by(al, arraylist_capacity(al) - count);
+        arraylist_shrink_buffer_by(al, al->capacity - count);
     }
 }
 
 void arraylist_insert(ArrayList* al, size_t pos, int val)
 {
-    arraylist_check_index(al, pos , "arraylist_insert");
+    ASSERT_INDEX_IS_VALID(al, pos);
 
-    if (arraylist_size(al) == arraylist_capacity(al)) {
-        arraylist_grow_buffer(al);
+    if (arraylist_is_full(al))
+        arraylist_resize(al, al->capacity * GROW_FACTOR);
+
+    for (size_t i = al->size - 1; i >= pos; --i) {
+        arraylist_set(al, i + 1, arraylist_get(al, i));
+    } 
+
+    arraylist_set(al, pos, val);
+    ++al->size;
+}
+
+int arraylist_lsearch(ArrayList* al, int val)
+{
+    for (size_t i = 0; i < al->size; ++i) {
+        if (arraylist_get(al, i) == val) {
+            return i;
+        }
+    }
+    return NOT_FOUND;
+}
+
+void arraylist_erase(ArrayList* al, size_t pos)
+{
+    ASSERT_INDEX_IS_VALID(al, pos);
+
+    for(size_t i = pos; i < al->size - 1; ++i) {
+        arraylist_set(al, i, arraylist_get(al, i + 1));
     }
 
-    for (int i = pos; i < arraylist_size(al) - 1; ++i) {
-       int temp = arraylist_get(al, i + 1);
-       arraylist_set(al, i + 1, arraylist_get(al, i));
-    }
+    --al->size;
 }
     
-static void arraylist_grow_buffer(ArrayList* al)
-{
-    al->capacity *= ARRAYLIST_GROW_FACTOR;
-
-    int* new_buffer_ptr = malloc(sizeof(int) * al->capacity);
-    arraylist_check_memory_allocation(al, "arraylist_grow_buffer");
-
-    for (int i = 0; i < al->size; ++i) {
-        new_buffer_ptr[i] = al->buffer_ptr[i];
-    }
-
-    free(al->buffer_ptr);
-
-    al->buffer_ptr = new_buffer_ptr;
-}
-
-static void arraylist_check_index(const ArrayList* al, size_t pos, const char* fun_name)
-{
-    if (pos < 0 || pos >= al->size) {
-        arraylist_error("arraylist_check_index", "index out of bounds");
-    }
-}
-
-static void arraylist_check_memory_allocation(const ArrayList* al, const char* fun_name)
-{
-    if (!al->buffer_ptr) {
-        arraylist_error(fun_name, "memory allocation error");
-    }
-}
-
 static void arraylist_grow_buffer_by(ArrayList* al, size_t count)
 {
     al->capacity += count;
     al->buffer_ptr = (int*)realloc(al->buffer_ptr, al->capacity * sizeof(int));
-    arraylist_check_memory_allocation(al, "arraylist_grow_buffer_by");
+    ASSERT_MEMORY_ALLOCATED(al->buffer_ptr);
 }
 
 static void arraylist_shrink_buffer_by(ArrayList* al, size_t count)
 {
-    int new_capacity = arraylist_capacity(al) - count;
-    if (arraylist_size(al) > new_capacity) {
-        al->size = new_capacity;
-    }
-    al->capacity = new_capacity;
-    al->buffer_ptr = (int*)realloc(al->buffer_ptr, sizeof(int) * new_capacity);
-    arraylist_check_memory_allocation(al, "arraylist_shrink_buffer_by");
-}
+    al->capacity = al->capacity - count;
+    al->size = (al->size > al->capacity) ? al->capacity : al->size;
 
-static void arraylist_error(const char* fun_name, const char* error_msg)
-{
-    fprintf(stderr, "%s: %s\n", fun_name, error_msg);
-    exit(1);
+    al->buffer_ptr = (int*)realloc(al->buffer_ptr, sizeof(int) * al->capacity);
+    ASSERT_MEMORY_ALLOCATED(al->buffer_ptr);
 }
 
 static void swap(int* a, int* b)
@@ -223,4 +204,23 @@ static void swap(int* a, int* b)
     int temp = *a;
     *a = *b;
     *b = temp;
+}
+
+ArrayList* arraylist_concat(ArrayList* dest, ArrayList* src)
+{
+    for (size_t i = 0; i < src->size; ++i)
+        arraylist_push_back(dest, arraylist_get(src, i));
+}
+
+void arraylist_remove(ArrayList* al, int val)
+{
+    int pos = arraylist_lsearch(al, val);
+    if (pos != NOT_FOUND)
+        arraylist_erase(al, pos);
+}
+
+ArrayList* arraylist_shrink_to_fit(ArrayList* al)
+{
+    arraylist_resize(al, al->size);
+    return al;
 }
