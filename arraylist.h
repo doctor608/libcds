@@ -54,4 +54,8 @@ void arraylist_remove(ArrayList* al, int val);
 
 int arraylist_lsearch(ArrayList* al, int val);
 
+int arraylist_bsearch(ArrayList* al, int val);
+
+bool arraylist_equals(const ArrayList* al1, const ArrayList* al2);
+
 #endif /* ARRAY_LIST_H */

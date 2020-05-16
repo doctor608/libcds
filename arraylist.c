@@ -76,7 +76,7 @@ int arraylist_pop(ArrayList* al)
     return al->buffer_ptr[al->size--];
 }
 
-void arraylist_sort(ArrayList* al, bool ascend)
+void arraylist_ssort(ArrayList* al, bool ascend)
 {
     if (al->size == 0 || al->size == 1) return;
 
@@ -208,8 +208,10 @@ static void swap(int* a, int* b)
 
 ArrayList* arraylist_concat(ArrayList* dest, ArrayList* src)
 {
-    for (size_t i = 0; i < src->size; ++i)
+    for (size_t i = 0; i < src->size; ++i) 
         arraylist_push_back(dest, arraylist_get(src, i));
+    
+    return dest;
 }
 
 void arraylist_remove(ArrayList* al, int val)
@@ -224,3 +226,38 @@ ArrayList* arraylist_shrink_to_fit(ArrayList* al)
     arraylist_resize(al, al->size);
     return al;
 }
+
+int arraylist_bsearch(ArrayList*al, int needle)
+{
+    int min = 0;
+    int max = al->size;
+    int mid;
+
+    while (min <= max) {
+        mid = (max + min) / 2;
+        if (needle == arraylist_get(al, mid))
+            return mid;
+        else if (needle > arraylist_get(al, mid))
+            min = mid + 1;
+        else
+            max = mid - 1;
+    }
+    
+    return NOT_FOUND;
+}
+
+bool arraylist_equals(const ArrayList*  al1, const ArrayList* al2)
+{
+    if (al1->size != al2->size) {
+        return false;
+    }
+
+    for (unsigned int i = 0; i < al1->size; ++i) {
+        if (arraylist_get(al1, i) != arraylist_get(al2, i)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
